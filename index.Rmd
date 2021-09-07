@@ -341,7 +341,7 @@ Column {data-width=400}{.tabset}
 
 ```{r eval = TRUE}
 # source("R/plotly_source_script.R")
-source("R/plotly_source_script.R")
+source(here::here("R/plotly_source_script.R"))
 ```
 
 ### Map of Exposure sites

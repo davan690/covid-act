@@ -1,7 +1,5 @@
 
 
-
-
 ##import data
 tab3 <- read.csv("https://raw.githubusercontent.com/green-striped-gecko/covid_canberra/main/data/last.csv")
 
@@ -20,7 +18,7 @@ newtab3$Date <- substr(newtab3$Date,1,10) #ditch day of the week
 labs <- paste(newtab3$Contact, newtab3$Status,newtab3$Exposure.Location, newtab3$Street, newtab3$Suburb, newtab3$Date,newtab3$Arrival.Time, newtab3$Departure.Time, newtab3$doubles, sep="<br/>") 
 
 ##add function here instead soon?
-m <- leaflet(df_shared) %>% 
+m <- leaflet(newtab3) %>% 
   addProviderTiles("Stamen.TonerLite",
                    options = providerTileOptions(opacity = 0.35)) 
 
@@ -32,44 +30,50 @@ busses <- readOGR(dsn = "bus", layer = "geo_export_69c76e06-1d3f-4619-be3b-b4e57
 #search all bus lines that are mentioned
 
 bindex <- grep("Bus Route", newtab3$Exposure.Location)
-buslanes <- newtab3$Exposure.Location[bindex]
 
-busnumbers <- gsub("Bus Route ([0-9,A-Z]+) Transport.*","\\1", buslanes)
-blineindex <- which(busses$short_name %in% busnumbers)
-blabs <- paste(paste0("Bus route: ", busses$short_name[blineindex]),"<strong> For bus stops and ","exposure times, please"," search the table." , sep="<br/>")
-bb <- (busses[blineindex,])
-coo <- coordinates(bb)
-bcols <- colorRampPalette(c("purple", "green"))( length(coo))
-
-for (ib in 1:length(coo))
-{
-  cood <- data.frame(coo[[ib]])
-  m <- m %>% addPolylines(lng=cood[,1], lat=cood[,2], color = bcols[ib], weight   = 3, opacity = 0.3, popup  = blabs[ib])
-  #add suburb data etc here
-}
-
-# m <- m %>% addCircleMarkers(lat=newtab3$lat, lng=newtab3$lon, popup = labs, weight=nn2, fillColor = cols[cc],color=ncols[nn], opacity =1,radius = 5 , fillOpacity = 0.5)
-
-m <-   m %>%
-  addCircleMarkers(lat=newtab3$lat, lng=newtab3$lon, popup = labs, weight=nn2, fillColor = cols[cc],color=ncols[nn], opacity =1,radius = 7 , fillOpacity = 0.5, clusterOptions =markerClusterOptions(spiderfyDistanceMultiplier=1.5,
-                                                                                                                                                                                               iconCreateFunction=JS("function (cluster) {
-
-    var childCount = cluster.getChildCount();
-
-    if (childCount < 3) {
-      c = 'rgba(64, 64, 64, 0.2);'
-    } else if (childCount < 50) {
-      c = 'rgba(184, 134, 11, 0.2);'
-    } else {
-      c = 'rgba(139, 0, 0, 0.2);'
-    }
-     return new L.DivIcon({ html: '<div style=\"background-color:'+c+'\"><span>' + childCount + '</span></div>', className: 'marker-cluster', iconSize: new L.Point(40, 40) });
-  }"))                                                  )
-
-m
-
+# #stops if 
+# if (bindex==0){print("STOPED AS NO BUSES")}
+#        
+# if(bindex > 0){
+#  #run everything below
+#        buslanes <- newtab3$Exposure.Location[bindex]
+# busnumbers <- gsub("Bus Route ([0-9,A-Z]+) Transport.*","\\1", buslanes)
+# blineindex <- which(busses$short_name %in% busnumbers)
+# blabs <- paste(paste0("Bus route: ", busses$short_name[blineindex]),"<strong> For bus stops and ","exposure times, please"," search the table." , sep="<br/>")
+# bb <- (busses[blineindex,])
+# coo <- coordinates(bb)
+# bcols <- colorRampPalette(c("purple", "green"))( length(coo))
+# 
+# for (ib in 1:length(coo))
+# {
+#   cood <- data.frame(coo[[ib]])
+#   m <- m %>% addPolylines(lng=cood[,1], lat=cood[,2], color = bcols[ib], weight   = 3, opacity = 0.3, popup  = blabs[ib])
+#   #add suburb data etc here
+# }
+# 
+# # m <- m %>% addCircleMarkers(lat=newtab3$lat, lng=newtab3$lon, popup = labs, weight=nn2, fillColor = cols[cc],color=ncols[nn], opacity =1,radius = 5 , fillOpacity = 0.5)
+# 
+# m <-   m %>%
+#   addCircleMarkers(lat=newtab3$lat, lng=newtab3$lon, popup = labs, weight=nn2, fillColor = cols[cc],color=ncols[nn], opacity =1,radius = 7 , fillOpacity = 0.5, clusterOptions =markerClusterOptions(spiderfyDistanceMultiplier=1.5,
+#                                                                                                                                                                                                iconCreateFunction=JS("function (cluster) {
+# 
+#     var childCount = cluster.getChildCount();
+# 
+#     if (childCount < 3) {
+#       c = 'rgba(64, 64, 64, 0.2);'
+#     } else if (childCount < 50) {
+#       c = 'rgba(184, 134, 11, 0.2);'
+#     } else {
+#       c = 'rgba(139, 0, 0, 0.2);'
+#     }
+#      return new L.DivIcon({ html: '<div style=\"background-color:'+c+'\"><span>' + childCount + '</span></div>', className: 'marker-cluster', iconSize: new L.Point(40, 40) });
+#   }"))                                                  )
+# 
+# #########END OF IFELSE STATEMENT
+# }
 # cc <- as.numeric(as.character(newtab3$Contact))
 # ??addlogo
+
 library(leafem)
 m <- leaflet(newtab3) %>%
   addProviderTiles("Stamen.TonerLite",
@@ -92,7 +96,7 @@ m <- m %>% addCircleMarkers(lat=newtab3$lat, lng=newtab3$lon,
      return new L.DivIcon({ html: '<div style=\"background-color:'+c+'\"><span>' + childCount + '</span></div>', className: 'marker-cluster', iconSize: new L.Point(40, 40) });
   }"))                                                                                                                           )
 
-
+  
 
 ##legend
 legcols <- cols
@@ -118,13 +122,13 @@ library(DT)
 #   filter_checkbox(
 #     id = "contact",
 #     label = "",
-#     sharedData = df_shared,
+#     Data = newtab3,
 #     group = ~Contact,
 #     inline=TRUE
 #   ))
-#bscols(  filter_select(id="dates", label="Date",sharedData = df_shared, group=~Date))
+#bscols(  filter_select(id="dates", label="Date",Data = newtab3, group=~Date))
 
-dtt <-DT::datatable(df_shared,
+dtt <-DT::datatable(newtab3,
                     caption = 'Search for entries, (shift)click to select, this highlights the locations in the map.',selection = "multiple", rownames = FALSE, 
                     extensions = c("Buttons", "Select", "Responsive"), options = list(autoHideNavigation=FALSE, pageLength=50,
                                                                                       dom = 'Bfrtip',
