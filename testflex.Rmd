@@ -1,0 +1,27 @@
+---
+title: "Crosstalk demo not working"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+---
+
+Column {data-width=150}
+---------
+
+```{r}
+library(crosstalk)
+library(flexdashboard)
+library(dplyr)
+library(plotly)
+
+showcase_df <- data.frame(c("A", "B", "A", "B", "A", "B"), c(1,5,3,2,4,1))
+colnames(showcase_df) <- c("category", "costs")
+showcase_df$category <- factor(showcase_df$category)
+shared_data <- SharedData$new(showcase_df)
+
+
+##loks good till here
+filter_select("showcase_filter", "A or B?", shared_data, showcase_df$category)
+
+valueBox(sum(showcase_df$costs))
+```

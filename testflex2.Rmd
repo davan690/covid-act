@@ -1,0 +1,325 @@
+---
+title: "COVID-19 for the Ontario General Public"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    #theme: paper
+    vertical_layout: scroll
+    #vertical_layout: fill
+#runtime: shiny    
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(shiny)
+# devtools::install_github("hadley/shinySignals")
+library(shinySignals)
+
+library(dplyr)
+library(knitr)
+library(tidyverse)
+library(kableExtra)
+
+library(hpackedbubble)
+library(classInt)
+library(plotly)
+library(crosstalk)
+```
+
+```{r supp_code, include = FALSE}
+
+# this function shortens *phu names* for bubble chart aesthetics
+shorten_phu_name <- function(phu_name){
+  new_phu_name <- gsub(" Health Unit| Public Health| and District| District| County-City| Counties| County|District of | Area", "", phu_name)
+  new_phu_name <- gsub(", Kawartha.+|, Fronten.+|-Duff.+| Parry.+| and Prince.+|, Gren.+", "", new_phu_name) # special cases
+  new_phu_name
+}
+
+```
+
+```{r data_load, include = FALSE}
+
+testing_df = read.csv("https://data.ontario.ca/dataset/a2dfa674-a173-45b3-9964-1e3d2130b40f/resource/07bc0e21-26b5-4152-b609-c1958cb7b227/download/testing_metrics_by_phu.csv")
+#head(testing_df)
+
+test_volumes_new <- gsub(",", "", testing_df$test_volumes_7d_avg) # avoid 'NA introduced by coercion' error when convert from char -> numeric
+testing_df$test_volumes_new <- as.numeric(test_volumes_new) # add `daily test volumes`as *numeric* column 
+
+t_df <- testing_df %>% filter(PHU_name != "Ontario") # remove 'Ontario' rows since only considering *local* phu regions 
+t_df$PHU_name <- shorten_phu_name(t_df$PHU_name) # shorten phu names for bubble chart aesthetics
+
+## daily test volume per 1,000 people by PHU (used for data table)
+df1 <- t_df %>%
+  group_by(PHU_name) %>%
+  summarise(avg_test_per_1000 = mean(tests_per_1000_7d_avg)) 
+
+## daily test volume by PHU (used for bubble chart)
+df2 <- t_df %>%
+  group_by(PHU_name) %>%
+  summarise( avg_7_day_volumes = mean(test_volumes_new) )
+```
+
+```{js}
+// automatically switch tabsets
+// code from : https://stackoverflow.com/questions/61458456/change-second-tabset-on-click-in-flexdashboard/615%2085037#61585037
+document.addEventListener("DOMContentLoaded", function(){
+    $('a[data-toggle="tab"]').on('click', function(e){
+      child = e.target.parentNode;
+      column = $(e.target).closest("div[id]");
+      columnid = column.attr("id");
+      tabnum = Array.from(child.parentNode.children).indexOf(child);
+      if (columnid == "column") {
+        columnto = "column-1";
+      } else {
+        columnto = "column";
+      }
+      $("div[id="+columnto+"] li:eq("+tabnum+") a").tab('show');
+    })
+});
+```
+
+How's Ontario doing for cases? 
+===================================== 
+
+Sidebar {.sidebar data-width=380}
+-------------------------------------
+### Map of ON
+
+```{r}
+#plot( mtcars$mpg, mtcars$cyl)
+```
+
+column {.tabset data-height=460}
+-----------------------------------------------------------------------
+### Average Daily Test Volume 
+
+```{r, fig.keep='none'}
+# socio_df <- read.csv("https://raw.githubusercontent.com/ED2589/Covid_Viz_2453/6ff535d6e84f2ab8e2ed28ef7c265e3141414875/Elisa/socioeconomic_phu.csv")
+# write.csv(socio_df, "./data/socioeconomic_phu.csv")
+# merge df2 w socioeconomic (median household income) data
+socio_df <- read.csv("./data/socioeconomic_phu.csv")
+socio_df$PHU_name <- shorten_phu_name(socio_df$PHU_name)
+merge_df2 <- base::merge(socio_df , df2, by.x = "PHU_name" )
+
+# split income into interval brackets (4 intervals)
+income_as_intervals <- cut(merge_df2$median_house_hold_income_after_tax, breaks = seq(50000, 90000, by = 10000), labels = c('$50K-60K', '$60K-70K', '$70K-80K', '$80K-90K'))
+merge_df2$income_interval <- income_as_intervals
+# round to 2 decimal places
+merge_df2$avg_7_day_volumes <- round(merge_df2$avg_7_day_volumes, digits = 2)
+# bubble chart
+hpackedbubble(merge_df2$income_interval,merge_df2$PHU_name, merge_df2$avg_7_day_volumes,
+              title = "",
+              pointFormat = "<b>{point.name}</b> avg. no. of tests per day: {point.y}",
+              dataLabelsFilter = 50,
+              packedbubbleMinSize = "93%",
+              packedbubbleMaxSize = "190%",
+              subtitle = "*Each bubble represents a distinct public health unit (PHU). Colour is by range of median   after-tax household income for that PHU as per the 2016 Canadian census data.",
+              subtitleAlign = "left",
+              #theme = "sunset",
+              #packedbubbleZMin = 0,
+              #packedbubbleZmax = 10000, 
+              split = 0,
+              gravitational = 0.02,
+              seriesInteraction = 1,
+              parentNodeLimit = 1,
+              dragBetweenSeries = 0,
+              width = "100%")
+
+# hpackedbubble(merge_df2$income_interval,merge_df2$new_phu_name, merge_df2$avg_7_day_volumes,
+#              packedbubbleMaxSize = "100%" )
+
+
+```
+
+### Active Case and Death Counts 
+
+```{r active_cases_chart}
+
+# active cases | resolved | deaths, by PHU 
+df <- read.csv("https://data.ontario.ca/dataset/1115d5fe-dd84-4c69-b5ed-05bf0c0a0ff9/resource/d1bfe1ad-6575-4352-8302-09ca81f7ddfc/download/cases_by_status_and_phu.csv")
+
+df <- df %>%
+  filter(PHU_NAME != "") # remove odd "" in PHU_NAME
+  
+df <- df %>%
+  mutate(FILE_DATE = as.Date(df$FILE_DATE,format='%Y-%m-%d' ))
+
+df<- df %>% 
+  rename(c(date = FILE_DATE, num_active = ACTIVE_CASES, num_resolved = RESOLVED_CASES, num_deaths = DEATHS, phu = PHU_NAME)) 
+
+# heatmap code adapted from source code embedded here: https://robertmitchellv.com/projects-covid-19-lac.html#us-states
+find_color_intervals <- function(.vals, num) {
+  # this function returns a vector of `num` integers,
+  # which represents the "kmeans"-computed intervals based on `.vals`.
+  # These intervals will be converted to the color scale used to plot heat map of active cases.
+  intervals <- classIntervals(.vals, n = num, style = "kmeans", rtimes = 5) # from 'classInt' package
+  return(round(intervals$brks))
+}
+
+intvals <- find_color_intervals(df$num_active, num = 8)
+colors <- RColorBrewer::brewer.pal(9, "PuBuGn")
+
+normalize <- function(z){
+  round((z-min(z))/(max(z)-min(z)), 2)
+} 
+
+hm_colors <- tibble(start_of_interval = intvals, hex = colors) %>%
+  mutate(start_of_interval = normalize(start_of_interval))
+
+
+plot_ly(df) %>%
+  filter(date >= "2020-04-10") %>%
+  add_heatmap(x = ~date, y = ~phu, z = ~as.integer(num_active),
+              colorscale = hm_colors,
+              xgap = 0.6,
+              opacity = 3.5, showscale = F,
+              text = ~paste(
+                "Date: ", date,"\nPublic Health Unit: ", phu,
+                "\nActive cases as of this date: ", scales::comma(as.integer(num_active)),
+                "\nTotal deaths as of this date: ", num_deaths),
+              hoverinfo = "text") %>%
+  layout(
+    title = "Active cases and deaths by PHU (shading by active dases)",
+    xaxis = list(title = "", tickfont = list(size = 9)),
+    yaxis = list(title = "", categoryorder = "max ascending", side = "right", tickfont = list(size = 8))) %>%
+  config(displayModeBar = FALSE)
+```
+
+
+```{r, include = FALSE}
+### no. daily tests per 1000 people BY PHU
+
+merge_df <- base::merge(socio_df , df1, by.x = "PHU_name" )
+
+income_as_intervals <- cut(merge_df$median_house_hold_income_after_tax, breaks = seq(50000, 90000, by = 10000), labels = c('$50K-60K', '$60K-70K', '$70K-80K', '$80K-90K'))
+merge_df$income_interval <- income_as_intervals
+hpackedbubble(merge_df$income_interval,merge_df$PHU_name, merge_df$avg_test_per_1000,
+              title = "",
+              subtitle = "*Measure of socioeconomic status = Median after-tax household income as of 2016 census data; May 1,2020 to Jan 14,2021",
+              subtitleAlign = "left",
+              pointFormat = "<b>{point.name}:</b> {point.y}",
+              dataLabelsFilter = 0,
+              packedbubbleMinSize = "67%",
+              packedbubbleMaxSize = "160%",
+              #theme = "sunset",
+              split = 0,
+              gravitational = 0.02,
+              parentNodeLimit = 1,
+              dragBetweenSeries = 0,
+              width = "100%")
+
+```
+
+column {.tabset data-height=300}
+-----------------------------------------------------------------------
+
+### Average Daily Test Volume per 1,000 people
+
+```{r}
+
+df1$avg_test_per_1000 <- round(df1$avg_test_per_1000, 2)
+#names(df1) <- c("Public Health Unit", "Avg. tests per 1K people")
+df1_desc <- as.data.frame(df1[order(df1$avg_test_per_1000, decreasing = T),])
+df1_desc %>%
+  kable(col.names = c("Public Health Unit", "Average tests per 1,000 people"))  %>%
+  kable_styling("striped", full_width = T, font_size = 10.8) %>% 
+  scroll_box(width = "700px", height = "450px")
+ 
+```
+
+### Total Confirmed Cases 
+```{r case_count, cache = TRUE}
+
+# Tally total # of confirmed cases to date by PHU
+df_cases <- read.csv("https://data.ontario.ca/dataset/f4112442-bdc8-45d2-be3c-12efae72fb27/resource/455fd63b-603d-4608-8216-7d8647f43350/download/conposcovidloc.csv")
+
+df_cases <- df_cases %>% 
+  group_by(Reporting_PHU) %>% 
+  tally()
+df_cases_desc <- df_cases[order(df_cases$n, decreasing = T),]
+df_cases_desc %>%
+    kable(col.names = c("Public Health Unit", "Total confirmed cases to date"), format.args =  list(big.mark = ",", 
+  scientific = FALSE)) %>%
+    kable_styling("striped", full_width = T, font_size = 10.8) %>% 
+    scroll_box(width = "700px", height = "450px")
+  
+```
+
+
+row {data-height=500}
+-----------------------------------------------------------------------
+
+### Outbreak rates
+```{r outbreak}
+# Code adapted from blog post: http://lenkiefer.com/2017/01/22/a-guide-to-building-an-interactive-flexdashboard/
+
+# load outbreak data
+df_out <- read.csv("https://data.ontario.ca/dataset/5472ffc1-88e2-48ca-bc9f-4aa249c1298d/resource/36048cc1-3c47-48ff-a49f-8c7840e32cc2/download/ongoing_outbreaks_phu.csv")
+df_out <- df_out %>%
+  mutate(date = as.Date(df_out$date,format='%Y-%m-%d' ))  %>% # change to `date` type for time series plotting %>%
+  mutate(outbreak_group = gsub("\\d ", "", df_out$outbreak_group) ) # clean up outbreak group labels
+# set up cross talk for drop-down selection by PHU  
+df_out_gp <-group_by(df_out, phu_name)
+df_crosstalk <- SharedData$new(df_out_gp
+                               #, ~phu_name
+                               )
+#df_temp <- filter(df_out_gp, phu_name == 'CITY OF OTTAWA')
+fig1<-
+   plot_ly(
+     data = df_crosstalk
+     ,x = ~date , y = ~number_ongoing_outbreaks 
+     ,type = 'scatter', mode = 'lines'
+     ,color = ~outbreak_group
+     ,text = ~paste(phu_name)
+     #,hoverinfo = "~phu_name"
+     #,linetype = ~outbreak_group
+     #,line = list(dash = "solid")
+     ,hovertemplate = paste('<b>Date</b>: %{x}',
+                        '<br><b>No. of outbreaks</b>: %{y}<br>',
+                        '<br><b>PHU</b>: %{text}<br>')
+           ) %>% 
+     layout(title = "Number of ongoing outbreaks over time by PHU" , 
+            xaxis = list(title="Date"), 
+            yaxis = list(title="Number of ongoing outbreaks"),
+            showlegend = FALSE
+             #,hovermode = "x unified"
+            )
+
+bscols( widths = c(2, 2, 8),
+  filter_select(
+  id = "PHU",
+  label = "Select/type one or multiple PHU(s) to compare outbreak rates. Default all displayed. Recommended selection of no more than two.",
+  sharedData = df_crosstalk,
+  group = ~phu_name, 
+  multiple = T
+),
+filter_checkbox(
+    id = "outbreak_group",
+    label = "Select one or more outbreak type(s). Default all displayed.",
+    sharedData = df_crosstalk,
+    group = ~outbreak_group
+  ), 
+fig1
+)
+  
+# bscols( #widths=c(3, 9),
+#   # filter_checkbox(
+#   #   id = "outbreak_group",
+#   #   label = "Select one or more outbreak type(s). Default all displayed.",
+#   #   sharedData = df_crosstalk,
+#   #   group = ~outbreak_group
+#   # )
+#   # ,
+#   fig1
+# )
+
+# bscols(widths=c(3, 9),
+#   list(filter_select("PHU", "Select one or multiple public health unit(s) to compare outbreak rates", df_crosstalk, ~phu_name, multiple=T)),
+#   fig1
+#   )
+
+```
+
+
+Vaccine: Ontario vs. Rest of Canada
+===================================== 

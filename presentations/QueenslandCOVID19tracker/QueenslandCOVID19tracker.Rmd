@@ -1,0 +1,769 @@
+---
+title: "COVID-19 IN QUEENSLAND, AUSTRALIA"
+output: flexdashboard::flex_dashboard
+
+---
+
+---
+<style>                     
+.navbar {
+  background-color:#51247A;
+  border-color:black;
+}
+.navbar-brand {
+color:white!important;
+}
+.nav-tabs-custom > .nav-tabs > li.active {
+border-top-color: #51247A
+}
+</style>
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE, message = FALSE)
+
+### This code for the Queensland COVID-19 tracker has been developed and works with the following specifications:
+# R version 4.0.0 (2020-04-24)
+# Platform: x86_64-w64-mingw32/x64 (64-bit)
+# Running under: Windows 10 x64 (build 18362)
+
+### This dashboard requires installation of ImageMagick that can be downloaded from https://imagemagick.org/script/index.php
+
+
+### install and load the pacman package that enables an efficient way of loading other packages
+#install.packages("pacman")
+library(pacman) # version 0.5.1
+
+p_load(DT, #version 0.13
+       data.table, #version 1.12.8
+       flexdashboard, #version 0.5.1.1
+       janitor, #version 2.0.1
+       knitr, #version 1.28
+       lubridate, #version 1.7.9
+       plotly, #version 4.9.2.1
+       RColorBrewer, #version 1.1-2
+       sf, #version 0.9-2
+       sp, #version 1.4-1
+       tidyverse, #version 1.3.0
+       tmap, #version 3.0
+       tmaptools #version 3.0
+       )
+# set global options which affect the way in which R computes and displayes the results (optional)
+options(scipen = 999, digits = 3)
+opts_chunk$set(cache = FALSE, warning = FALSE, echo = FALSE,
+               message = FALSE, include=FALSE,
+               dpi = 96, fig.width=8, fig.asp=.6)
+
+# set tmap mode to interactive viewing
+tmap_mode("view")
+
+```
+
+```{r updates}
+
+# assign main directory
+MAINDIR<-'R:\\COVIDGEOG\\Dashboard\\QueenslandCOVID19tracker'
+# set working directory
+setwd(MAINDIR)
+
+## Section to update
+####################################################################################################################
+# read in COVID-19 dataset for the current date
+NewData <- read_csv('./Data/DATA150920.csv')
+
+Sit.text<-"Situation 15 September" # update the name of the first page of the dashboard
+TODAY<-"2020.09.15" # update today's date
+YESTERDAY<-"2020.09.14" # update yesterday's date
+
+gif.name<-"QLDCovid150920.gif" # define name for the output animated map and update the current date
+
+copy.from<-"R:\\COVIDGEOG\\Dashboard\\QueenslandCOVID19tracker\\ImageMagick-7.0.10-3-portable-Q16-x64\\QLDCovid150920.gif"
+copy.to<-"R:\\COVIDGEOG\\Dashboard\\QueenslandCOVID19tracker\\Data\\QLDCovid150920.gif"
+
+rename.from<-"R:\\COVIDGEOG\\Dashboard\\Data\\QueenslandCOVID19tracker\\QLDCovid150920.gif"
+rename.to<-"R:\\COVIDGEOG\\Dashboard\\Data\\QueenslandCOVID19tracker\\QLDCovid.gif"
+
+names.QLDHHSDATA<-c("HHS",format(seq(as.Date("2020/3/16"), as.Date("2020/9/15"), "day"), "%A, %d %B %y")) # define and update dates as names to be used in output tables 
+#####################################################################################################################
+
+NewData <- NewData %>% filter(Region != "Mater Health Service") #exclude 'Mater Health Service' from the output table
+
+# add updated data to existing data files
+# qlddata_HHS_updated.csv
+covid_data_QLD_HHS <- read_csv('./Data/qlddata_HHS_updated.csv')
+covid_data_QLD_HHS[[TODAY]]<-NewData$Total.cases
+write_csv(covid_data_QLD_HHS,'./Data/qlddata_HHS_updated.csv')
+
+# qlddata_HHS_updated_newcases
+covid_data_QLD_HHS_new <- read_csv('./Data/qlddata_HHS_updated_newcases.csv')
+covid_data_QLD_HHS_new[[TODAY]]<-covid_data_QLD_HHS[[TODAY]]- covid_data_QLD_HHS[[YESTERDAY]]
+write_csv(covid_data_QLD_HHS_new,'./Data/qlddata_HHS_updated_newcases.csv')
+
+# qlddata_HHS_updated_active.csv
+covid_data_QLD_HHS_active <- read_csv('./Data/qlddata_HHS_updated_active.csv')
+covid_data_QLD_HHS_active[[TODAY]]<-NewData$Acitve.cases
+write_csv(covid_data_QLD_HHS_active,'./Data/qlddata_HHS_updated_active.csv')
+
+# qlddata_HHS_updated_recovered.csv
+covid_data_QLD_HHS_recover <- read_csv('./Data/qlddata_HHS_updated_recovered.csv')
+covid_data_QLD_HHS_recover[[TODAY]]<-NewData$Totalrecovered
+write_csv(covid_data_QLD_HHS_recover,'./Data/qlddata_HHS_updated_recovered.csv')
+
+# qlddata_HHS_updated_deaths.csv
+covid_data_QLD_HHS_deaths <- read_csv('./Data/qlddata_HHS_updated_deaths.csv')
+covid_data_QLD_HHS_deaths[[TODAY]]<-NewData$Totaldeaths
+write_csv(covid_data_QLD_HHS_deaths,'./Data/qlddata_HHS_updated_deaths.csv')
+
+No.Tests<-NewData$Test[1] # number of tests
+conf.cas<-sum(NewData$Total.cases) # number of confirmed cases
+newconf.cas<-sum(covid_data_QLD_HHS_new[[TODAY]]) # number of new confirmed cases
+active.cas<-sum(NewData$Acitve.cases) # number of active case
+Recov.cas<-sum(NewData$Totalrecovered) # number of recovered cases
+No.Deaths<-sum(NewData$Totaldeaths) # number of deaths
+Isolation.current<-sum(NewData$Isolation.current) # number of active self-quarantine notices
+Isolation.all<-sum(NewData$Isolation.all) # number of total self-quarantine notices
+
+# Choice of colors for each HHS region
+Cairns.col <- "#E41A1C" #Cairns and Hinterland
+CentralQLD.col <- "#815375" #Central Queensland
+Centralwest.col <- "#3A85A8" #Central West
+Darling.col <- "#46A169" #Darling Downs
+Gold.col <- "#629363" #Gold Coast
+Mackay.col <- "#999999" #Mackay
+Metron.col <- "#8D5B96" #Metro North
+Metros.col <- "#FF7F00" #Metro South
+Northw.col <- "#BF862B" #North West
+Southw.col <- "#FFC81D" #South West
+Sunshine.col <- "#F2E631" #Sunshine Coast
+Torres.col <- "#BD6253" #Torres and Cape
+Townsville.col <- "#C4625D" #Townsville
+Westmoreton.col <- "#EB7AA9" #West Moreton
+Widebay.col <- "#CE8BAE" #Wide Bay
+
+## end of updates
+```
+
+
+```{r data, include=FALSE, cache=TRUE}
+
+########### HHS Queensland Health Data
+
+# https://www.qld.gov.au/health/conditions/health-alerts/coronavirus-covid-19/current-status/statistics
+
+### CONFIRMED AND NEW CASES FOR QLD HHS
+
+# Confirmed cases HHS
+covid_data_QLD_HHS1 <- covid_data_QLD_HHS %>% filter(HHS != "Overseas")
+covid_data_QLD_HHSt <- as.data.frame(t(covid_data_QLD_HHS1)) %>% janitor::row_to_names(row_number = 1)
+setDT(covid_data_QLD_HHSt, keep.rownames = "Date")
+write_csv(covid_data_QLD_HHSt, "temp3.csv")
+covid_data_QLD_HHSt2 <- read_csv("temp3.csv")
+covid_data_QLD_HHSd <- covid_data_QLD_HHSt2 %>% mutate(time.stamp=ymd(Date)) 
+covid_data_QLD_HHSd_ <- covid_data_QLD_HHSd %>% select(17, 2:16)
+covid_data_QLD_HHSd_ts <- covid_data_QLD_HHSd_ %>%  gather(key="HHS", value = "value", -time.stamp)
+
+# New cases HHS
+covid_data_QLD_HHS_new1 <- covid_data_QLD_HHS_new %>%   filter(HHS != "Overseas")
+covid_data_QLD_HHS_newt <- as.data.frame(t(covid_data_QLD_HHS_new1)) %>%  janitor::row_to_names(row_number = 1)
+setDT(covid_data_QLD_HHS_newt, keep.rownames = "Date")
+write_csv(covid_data_QLD_HHS_newt, "temp4.csv")
+covid_data_QLD_HHS_newt2 <- read_csv("temp4.csv")
+covid_data_QLD_HHS_newd <- covid_data_QLD_HHS_newt2 %>% mutate(time.stamp=ymd(Date))
+covid_data_QLD_HHS_newd_ <- covid_data_QLD_HHS_newd %>%   select(17, 2:16)
+covid_data_QLD_HHS_newd_ts <- covid_data_QLD_HHS_newd_ %>%   gather(key="HHS", value = "value", -time.stamp)
+
+# Active cases HHS
+covid_data_QLD_HHS_active1 <- covid_data_QLD_HHS_active %>%   filter(HHS != "Overseas")
+covid_data_QLD_HHS_activet <- as.data.frame(t(covid_data_QLD_HHS_active1)) %>% janitor::row_to_names(row_number = 1)
+setDT(covid_data_QLD_HHS_activet, keep.rownames = "Date")
+write_csv(covid_data_QLD_HHS_activet, "temp1.csv")
+covid_data_QLD_HHS_activet2 <- read_csv("temp1.csv")
+covid_data_QLD_HHS_actived <- covid_data_QLD_HHS_activet2 %>% mutate(time.stamp=ymd(Date))
+covid_data_QLD_HHS_actived_ <- covid_data_QLD_HHS_actived %>% select(17, 2:16)
+covid_data_QLD_HHS_actived_ts <- covid_data_QLD_HHS_actived_ %>% gather(key="HHS", value = "value", -time.stamp)
+
+# Recovered cases HHS
+covid_data_QLD_HHS_recover1 <- covid_data_QLD_HHS_recover %>%  filter(HHS != "Overseas")
+covid_data_QLD_HHS_recovert <- as.data.frame(t(covid_data_QLD_HHS_recover1)) %>% janitor::row_to_names(row_number = 1)
+setDT(covid_data_QLD_HHS_recovert, keep.rownames = "Date")
+write_csv(covid_data_QLD_HHS_recovert, "temp2.csv")
+covid_data_QLD_HHS_recovert2 <- read_csv("temp2.csv")
+covid_data_QLD_HHS_recoverd <- covid_data_QLD_HHS_recovert2 %>% mutate(time.stamp=ymd(Date))
+covid_data_QLD_HHS_recoverd_ <- covid_data_QLD_HHS_recoverd %>%   select(17, 2:16)
+covid_data_QLD_HHS_recoverd_ts <- covid_data_QLD_HHS_recoverd_ %>% gather(key="HHS", value = "value", -time.stamp)
+
+### CONFIRMED AND NEW CASES FOR QLD TOTAL
+
+# Confirmed cases QLD
+covid_data_QLD_HHS_total <- covid_data_QLD_HHS %>% adorn_totals("row") %>% filter(HHS == "Total")
+covid_data_QLD_HHS_totalt <- as.data.frame(t(covid_data_QLD_HHS_total)) %>% janitor::row_to_names(row_number = 1)
+setDT(covid_data_QLD_HHS_totalt, keep.rownames = "Date")
+write_csv(covid_data_QLD_HHS_totalt, "temp5.csv")
+covid_data_QLD_HHS_totalt2 <- read_csv("temp5.csv")
+covid_data_QLD_HHS_totald <- covid_data_QLD_HHS_totalt2 %>% mutate(time.stamp=ymd(Date))
+covid_data_QLD_HHS_total_ <- covid_data_QLD_HHS_totald %>% select(3, 2)
+
+# New cases QLD
+covid_data_QLD_HHS_new_total <- covid_data_QLD_HHS_new %>% adorn_totals("row") %>% filter(HHS == "Total")
+covid_data_QLD_HHS_new_totalt <- as.data.frame(t(covid_data_QLD_HHS_new_total)) %>% janitor::row_to_names(row_number = 1)
+setDT(covid_data_QLD_HHS_new_totalt, keep.rownames = "Date")
+write_csv(covid_data_QLD_HHS_new_totalt, "temp6.csv")
+covid_data_QLD_HHS_new_totalt2 <- read_csv("temp6.csv")
+covid_data_QLD_HHS_new_totaltd <- covid_data_QLD_HHS_new_totalt2 %>% mutate(time.stamp=ymd(Date))
+covid_data_QLD_HHS_new_total_ <- covid_data_QLD_HHS_new_totaltd %>% select(3, 2)
+
+# Active cases QLD
+covid_data_QLD_HHS_active_total <- covid_data_QLD_HHS_active %>% adorn_totals("row") %>% filter(HHS == "Total")
+covid_data_QLD_HHS_active_totalt <- as.data.frame(t(covid_data_QLD_HHS_active_total)) %>% janitor::row_to_names(row_number = 1)
+setDT(covid_data_QLD_HHS_active_totalt, keep.rownames = "Date")
+write_csv(covid_data_QLD_HHS_active_totalt, "temp7.csv")
+covid_data_QLD_HHS_active_totalt2 <- read_csv("temp7.csv")
+covid_data_QLD_HHS_active_totaltd <- covid_data_QLD_HHS_active_totalt2 %>% mutate(time.stamp=ymd(Date))
+covid_data_QLD_HHS_active_total_ <- covid_data_QLD_HHS_active_totaltd %>% select(3, 2)
+
+# Recovered cases QLD
+covid_data_QLD_HHS_recover_total <- covid_data_QLD_HHS_recover %>% adorn_totals("row") %>% filter(HHS == "Total")
+covid_data_QLD_HHS_recover_totalt <- as.data.frame(t(covid_data_QLD_HHS_recover_total)) %>% janitor::row_to_names(row_number = 1)
+setDT(covid_data_QLD_HHS_recover_totalt, keep.rownames = "Date")
+write_csv(covid_data_QLD_HHS_recover_totalt, "temp8.csv")
+covid_data_QLD_HHS_recover_totalt2 <- read_csv("temp8.csv")
+covid_data_QLD_HHS_recover_totaltd <- covid_data_QLD_HHS_recover_totalt2 %>% mutate(time.stamp=ymd(Date))
+covid_data_QLD_HHS_recover_total_ <- covid_data_QLD_HHS_recover_totaltd %>% select(3, 2)
+
+# Calclulating doubling time
+covid_data_QLD_HHS1.data<-covid_data_QLD_HHS1[-1]
+COLS<-ncol(covid_data_QLD_HHS1.data)
+covid_data_QLD_HHS1.data.yesterday<-covid_data_QLD_HHS1.data[-COLS]
+covid_data_QLD_HHS1.data.today<-covid_data_QLD_HHS1.data[-1]
+
+QLDGrowthRate.Regions<-log(covid_data_QLD_HHS1.data.today/covid_data_QLD_HHS1.data.yesterday)
+QLD.Regions.doubling.time.in.days<- log(2)/QLDGrowthRate.Regions
+
+covid_data_QLD_HHS1.data.today/covid_data_QLD_HHS1.data.yesterday
+QLDGrowthRate<-log(colSums(covid_data_QLD_HHS1.data.today)/colSums(covid_data_QLD_HHS1.data.yesterday))
+QLD.doubling.time.in.days<- log(2)/QLDGrowthRate
+No.<-length(QLD.doubling.time.in.days)  
+DBL.today<-QLD.doubling.time.in.days[No.]
+DBL.today<-round(DBL.today,0)
+names(DBL.today)<-NULL
+
+# end of data
+
+```
+
+`r Sit.text` {data-icon="fa-calendar-check"}
+=====================================     
+
+Column {data-width=175}
+-------------------------------------
+
+### 
+
+```{r include=TRUE}
+# value box for Confirmed cases
+valueBox(value=conf.cas, icon = "fa-user-edit", caption = "Confirmed Cases", color = "#fdb863")
+
+```
+
+### 
+```{r include=TRUE}
+# value box for New Confirmed cases
+valueBox(value=newconf.cas, icon="fa-user-plus", caption = "New Confirmed Cases", color="#b2abd2")
+
+```
+
+### 
+```{r include=TRUE}
+# value box for Active cases
+valueBox(value=active.cas, icon="fa-user-clock", caption = "Active Cases", color="#abd9e9")
+
+```
+
+### 
+```{r include=TRUE}
+# value box for Recovered cases
+valueBox(value=Recov.cas, icon="fa-user-check", caption = "Recovered Cases", color="#a6dba0")
+
+```
+
+### 
+```{r include=TRUE}
+# value box for Tests
+valueBox(value=No.Tests, icon="fa-vial", caption = "Tests", color="#8dd3c7")
+
+```
+
+### 
+```{r include=TRUE}
+# value box for Deaths
+valueBox(value=No.Deaths, icon="fa-user", caption = "Deaths", color="#d6604d")
+
+```
+
+### 
+```{r include=TRUE}
+# value box for Self-quarantine notices
+valueBox(value=Isolation.current, icon="fa-user", caption = "Self-quarantine notices", color="#4dd6b1")
+
+```
+
+Column {.tabset}
+-------------------------------------------------
+
+### Geographical map
+
+
+```{r interactive map, include=TRUE}
+# prepare data for an interactive map
+Pop2017<-read.csv('./Data/PopulationData.csv') # population data for QLD HHS regions (2014)
+
+covid_data_QLD_HHS1 <- covid_data_QLD_HHS %>% filter(HHS != "Overseas")
+covid_data_QLD_HHS_new1 <- covid_data_QLD_HHS_new %>% filter(HHS != "Overseas")
+covid_data_QLD_HHS_active1 <- covid_data_QLD_HHS_active %>% filter(HHS != "Overseas")
+covid_data_QLD_HHS_recover1 <- covid_data_QLD_HHS_recover %>% filter(HHS != "Overseas")
+covid_data_QLD_HHS_deaths1 <- covid_data_QLD_HHS_deaths %>% filter(HHS != "Overseas")
+
+DATA.<-cbind.data.frame(Pop2017,covid_data_QLD_HHS1)
+NAMES.DATA<-c("HHS2","Population","18+","0-4","5–17","0–14","15–29","30–64","65+","65–74","75+","Area","Area proportion of state","Population density",names(covid_data_QLD_HHS1))
+names(DATA.)<-NAMES.DATA
+
+PERCENTOFPOPULATION<-(DATA.[[TODAY]]/DATA.$Population)*100 
+PERTHOUSENDPOPULATION<-(DATA.[[TODAY]]/DATA.$Population)*1000
+
+PerCapita<-cbind.data.frame(DATA.$HHS,PERCENTOFPOPULATION,PERTHOUSENDPOPULATION)
+names(PerCapita)<-c("HHS","% POP", "Per 1000 Population")
+
+# read in shape files for HHS regions and major cities
+QLD_HHS<-st_read("R:\\COVIDGEOG\\Dashboard\\Data\\QueenslandCOVID19tracker\\Hospital_and_Health_Service_boundaries.shp", quiet = T) # HHS shapefile
+Cities<-st_read("R:\\COVIDGEOG\\Dashboard\\QueenslandCOVID19tracker\\mygeodata\\QLDcities-point.shp", quiet = T) # major cities in QLD shapefile
+
+Confirmed <- left_join(QLD_HHS, DATA., by = "HHS")
+Confirmed_PerCapita <- left_join(QLD_HHS, PerCapita, by = "HHS")
+New <- left_join(QLD_HHS, covid_data_QLD_HHS_new1, by = "HHS")
+Active <- left_join(QLD_HHS, covid_data_QLD_HHS_active1, by = "HHS")
+Recovered <- left_join(QLD_HHS, covid_data_QLD_HHS_recover1, by = "HHS")
+Deaths <- left_join(QLD_HHS, covid_data_QLD_HHS_deaths1, by = "HHS")
+# define breaks
+my.breaks <- c(0,1,10,50,100,150,max(covid_data_QLD_HHS1[2:ncol(covid_data_QLD_HHS1)]))
+# define colors
+my.cols <- colors()[c(1, 2, 3, 4, 5, 6)]
+
+# build a thematic map using 'tmap' package for map visualisation
+InteractiveMap <- tm_shape(Confirmed)+ #confirmed cases
+  tm_polygons(TODAY,id = "HHS",title="Confirmed cases to date",palette = "YlOrBr",
+              popup.vars=c(TODAY, "Area","Population density"),legend.hist = T,breaks = my.breaks,popup.vars = TRUE)+
+
+tm_shape(Confirmed_PerCapita)+ #cases per capita
+tm_polygons("Per 1000 Population",id = "HHS",title="Confirmed cases per 1000",palette = "RdPu")+
+            
+tm_shape(New)+ #new cases
+tm_polygons(TODAY,id = "HHS",title="New cases today",style="cat",palette = "Purples")+ 
+  
+tm_shape(Active)+ #active cases
+tm_polygons(TODAY,id = "HHS",title="Active cases",palette = "Blues")+ 
+
+tm_shape(Recovered)+ #recovered cases
+tm_polygons(TODAY,id = "HHS",title="Recovered cases",palette = "Greens")+ 
+  
+tm_shape(Deaths)+ #deaths
+tm_polygons(TODAY,id = "HHS",title="Deaths to date",palette = my.cols,style="cat")+ 
+
+tm_shape(Cities)+ #cities
+tm_dots(id = "Id",col="#878787")+     
+tm_text("Id",just = "left",xmod = 0.5,col="#878787") 
+
+# define features of the interactive map using 'leaflet' package for interactive maps         
+InteractiveMap <- tmap_leaflet(InteractiveMap) %>%
+  leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron, group="Light", options = leaflet::providerTileOptions(minZoom = 1, maxZoom = 10)) %>% 
+  leaflet::addProviderTiles(leaflet::providers$CartoDB.DarkMatter, group="Dark", options = leaflet::providerTileOptions(minZoom = 1, maxZoom = 10)) %>% 
+  leaflet::setView (lng = 144, lat =-22,zoom = 5) %>%
+  leaflet::setMaxBounds(lng1 = 130, lat1 = -2, lng2 = 157, lat2 = -32) %>% 
+leaflet::hideGroup(c("Confirmed_PerCapita","New","Active","Recovered","Deaths")) %>% 
+leaflet::addLayersControl(baseGroups = c("Light", "Dark"), 
+                          overlayGroups=c("Confirmed", "Confirmed_PerCapita","New","Active","Recovered","Deaths","Cities"),
+                          position="topleft",
+                          options = leaflet::layersControlOptions(collapsed = FALSE))
+
+InteractiveMap
+
+# end of interactive map
+```
+
+
+### Summary table
+
+```{r table, include=TRUE}
+# prepate data for interactive summary table
+covid_data_QLD_HHS_names <- covid_data_QLD_HHS[,1]
+covid_data_QLD_HHS_last <- covid_data_QLD_HHS[,ncol(covid_data_QLD_HHS)]
+covid_data_QLD_HHS_new_last <- covid_data_QLD_HHS_new[,ncol(covid_data_QLD_HHS_new)]
+covid_data_QLD_HHS_acive_last <- covid_data_QLD_HHS_active[,ncol(covid_data_QLD_HHS_active)]
+covid_data_QLD_HHS_recover_last <- covid_data_QLD_HHS_recover[,ncol(covid_data_QLD_HHS_recover)]
+covid_data_QLD_HHS_deaths_last <- covid_data_QLD_HHS_deaths[,ncol(covid_data_QLD_HHS_deaths)]
+
+data_to_show <- data.frame(covid_data_QLD_HHS_names,
+                           covid_data_QLD_HHS_last,
+                           covid_data_QLD_HHS_new_last,
+                           covid_data_QLD_HHS_acive_last,
+                           covid_data_QLD_HHS_recover_last,
+                           covid_data_QLD_HHS_deaths_last)
+                           
+colnames(data_to_show) <- c("HHS", "Confirmed", "New", "Active", "Recovered", "Deaths")
+
+# manipulate the interactive table using package 'DT'
+Table <- datatable(data_to_show,
+                   filter="none", # do not use column filters
+                   class="display", # the CSS class of the table
+                   rownames = F, # hide rownames
+                   options=list(pageLength = 16, dom="t")) %>% 
+  formatStyle('New',  backgroundColor = styleInterval(c(0.5), c('grey2','#b2abd2'))) 
+Table
+
+# end of table
+
+```
+
+
+### Instructions
+
+#### Geographical map and summary table show the most recent number of cases in Queensland by Hospital and Health Service (HHS) regions.
+
+#### Map and graphs shown in this dashboard are interactive. Geographical map has several layers showing the distribution of confirmed, active, recovered cases and deaths. For graphs, it is possible to select one value or zoom in on a portion of a graph. Double click/double tap on the graph will reset the scale.
+
+
+Change Over Time {data-icon="fa-chart-line"}
+========================================     
+   
+Column {.tabset}
+----------------------------------
+
+### Queensland
+
+```{r cumulative and new cases, include=TRUE}
+
+covid_data_QLD_HHS_total_2 <- covid_data_QLD_HHS_total_ %>% rename(Total2 = Total)
+
+g <- ggplot(covid_data_QLD_HHS_new_total_, aes(x = time.stamp, y = Total))+
+  geom_col(fill="#b2abd2")+
+  geom_line(data=covid_data_QLD_HHS_total_, aes(x = time.stamp, y = Total), 
+            color="grey40")+
+  geom_point(data=covid_data_QLD_HHS_total_2, aes(x = time.stamp, y = Total2), 
+             color="#fdb863")+
+  ggtitle("Cumulative (line) and new (bars) cases in Queensland")+
+  theme_minimal()+
+  scale_x_date(date_breaks = "10 days", position="bottom", limits = NULL) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  labs(y="Confirmed cases, persons", x = "", caption = "Source: the Queensland Health data")
+
+ggplotly(g, tooltip="Total") %>% config(displayModeBar = F) %>%  
+  layout(title = list(text = paste0('Cumulative (line) and new (bars) cases in Queensland',
+                                    '<br>',
+                                    '<sup>',
+                                    'Source: the Queensland Health data',
+                                    '</sup>')))
+
+# end of cumulative and new cases
+
+```
+
+
+### HHS Regions
+
+
+```{r regions, include=T}
+
+covid_data_QLD_HHSd_ts$HHS <- as.factor(covid_data_QLD_HHSd_ts$HHS)
+
+nHHS <- nlevels(as.factor(covid_data_QLD_HHSd_ts$HHS))
+pal <- colorRampPalette(brewer.pal(16, "Set1"))
+
+g <- ggplot(covid_data_QLD_HHSd_ts, aes(x = time.stamp, y = value, color = HHS))+
+  geom_line(size=1.2)+
+  geom_point(shape="plus")+
+  scale_color_manual(values = pal(16))+
+  theme_minimal()+
+  ggtitle("Cumulative cases in Hospital and Health Service (HHS) regions")+
+  scale_x_date(date_breaks = "10 days", position="top", limits = NULL) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  labs(y="Confirmed cases, persons", x = "")+
+  labs(color = "HSS")
+
+ggplotly(g, tooltip=c("HHS", "value"))%>% config(displayModeBar = F)%>%  
+  layout(title = list(text = paste0('Cumulative cases in Hospital and Health Service (HHS) regions',
+                                    '<br>',
+                                    '<sup>',
+                                    'Source: the Queensland Health data',
+                                    '</sup>')))
+# end of regions
+
+```
+
+### Active cases
+
+```{r active, include =T}
+
+covid_data_QLD_HHS_actived_2 <- covid_data_QLD_HHS_actived_ %>%
+  rename(Date = time.stamp) %>% 
+  select(-`Central West`, -`North West`,-`South West`,-`Torres and Cape`)
+
+bottom10_active <- dplyr::top_n(covid_data_QLD_HHS_actived_2, 10, Date)
+
+Table_active <- datatable(bottom10_active, filter="none", class="display",rownames = F, options=list(pageLength = 16, dom="t", scrollX=T))
+Table_active
+
+# end of active
+```
+
+### Recovered cases
+
+```{r recovered, include =T}
+
+covid_data_QLD_HHS_recoverd_2 <- covid_data_QLD_HHS_recoverd_ %>%
+  rename(Date = time.stamp) %>% 
+  select(-`Central West`, -`North West`,-`South West`,-`Torres and Cape`)
+
+bottom5_recover <- dplyr::top_n(covid_data_QLD_HHS_recoverd_2, 10, Date)
+
+Table_recovered <- datatable(bottom5_recover,filter="none", class="display",rownames = F,options=list(pageLength = 16, dom="t", scrollX=T)) 
+Table_recovered
+
+# end of recovered
+
+```
+
+
+Column {data-width=250}
+-------------------------------------
+
+### 
+
+```{r include=TRUE}
+# value box for doubling time
+valueBox(value=DBL.today, icon="fa-chart-line", caption = "Doubling time in days", color="#de77ae")
+
+```
+
+
+```{r gif}
+
+QLDHHSDATA.<-read_csv("./Data/qlddata_HHS_updated.csv")
+QLDHHSDATA<-QLDHHSDATA.[-16,]
+my.breaks <- c(0,1,10,50,100,150,max(QLDHHSDATA[2:ncol(QLDHHSDATA)]))
+names(QLDHHSDATA)<-names.QLDHHSDATA
+MAPDATA_ <- left_join(QLD_HHS, QLDHHSDATA, by = "HHS")
+
+# select only columns for latest 30 days
+MAPDATA_ <- MAPDATA_ %>% select(HHS, SHAPE_Leng, SHAPE_Area, tail(names(.),31))
+facets_ <- names.QLDHHSDATA[-1] 
+facets <- tail(facets_,30)
+# make an animated gif map
+M3<-tm_shape(MAPDATA_) + 
+  tm_polygons(facets, 
+              breaks = my.breaks,
+              palette = "YlOrRd") + 
+  tm_legend(legend.position = c("right", "top"))+
+  tm_layout(frame = F,
+            main.title = "Confirmed cases")+
+  tm_facets(nrow=1,ncol=1)
+
+# FIX
+setwd("R:\\COVIDGEOG\\Dashboard\\QueenslandCOVID19tracker\\ImageMagick-7.0.10-3-portable-Q16-x64")
+tmap_animation(M3, filename=gif.name, width=1200, delay=40)
+
+# rename and copy gif map
+file.copy(copy.from, copy.to)
+file.rename(rename.from, rename.to)
+
+# end of gif
+
+```
+
+### 
+
+![](R://COVIDGEOG-A3138/Dashboard/Data/QLDCovid.gif)
+
+
+Individual Regions {data-icon="fa-chart-bar"}
+========================================     
+   
+Column {.tabset}
+----------------------------------
+### Cairns and Hinterland
+
+```{r include=TRUE}
+
+HHSplot <- function(HHSregion, HHS_col){
+  region_new <- covid_data_QLD_HHS_newd_ts %>% filter(HHS==HHSregion)
+  region <- covid_data_QLD_HHSd_ts %>% filter(HHS==HHSregion)
+  region2 <- region %>% rename(value2=value)
+  
+  g <- ggplot(region_new, aes(x = time.stamp, y = value))+
+  geom_col(show.legend = FALSE, fill = HHS_col)+
+  geom_line(data=region,aes(x = time.stamp, y = value), color = "grey40")+
+  geom_point(data=region2,aes(x = time.stamp, y = value2),shape="plus",color = HHS_col,show.legend = FALSE)+
+  theme_minimal()+
+  ggtitle(paste0('Cumulative (line) and new (bars) cases in ', HHSregion))+
+  scale_x_date(date_breaks = "10 days", position="bottom", limits = NULL) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  labs(y="New cases, persons", x = "")+
+  labs(y="Confirmed cases, persons", x = "", caption = "Source: the Queensland Health data")
+
+ggplotly(g, tooltip="value")%>% config(displayModeBar = F) %>%  
+  layout(title = list(text = paste0('Cumulative (line) and new (bars) cases in ',
+                                    HHSregion,
+                                    '<br>',
+                                    '<sup>',
+                                    'Source: the Queensland Health data',
+                                    '</sup>')))
+}
+HHSplot("Cairns and Hinterland", Cairns.col)
+
+``` 
+  
+  
+### Central Queensland
+
+```{r include=TRUE}
+
+HHSplot("Central Queensland", CentralQLD.col)
+
+``` 
+
+### Central West
+
+#### There are zero confirmed cases in this region.
+
+### Darling Downs
+
+```{r include=TRUE}
+
+HHSplot("Darling Downs", Darling.col)
+
+```
+
+### Gold Coast
+
+```{r include=TRUE}
+
+HHSplot("Gold Coast", Gold.col)
+
+```   
+
+### Mackay
+
+```{r include=TRUE}
+
+HHSplot("Mackay", Mackay.col)
+
+``` 
+  
+### Metro North
+
+```{r include=TRUE}
+
+HHSplot("Metro North", Metron.col) 
+
+``` 
+
+### Metro South
+
+```{r include=TRUE}
+
+HHSplot("Metro South", Metros.col) 
+
+```
+
+
+### North West
+
+
+#### There are zero confirmed cases in this region.
+
+
+### South West
+
+
+#### There are zero confirmed cases in this region.
+
+
+### Sunshine Coast
+
+```{r include=TRUE}
+
+HHSplot("Sunshine Coast", Sunshine.col) 
+
+``` 
+
+
+### Torres and Cape
+
+#### There are zero confirmed cases in this region.
+
+### Townsville
+
+```{r include=TRUE}
+
+HHSplot("Townsville", Townsville.col)
+
+``` 
+
+### West Moreton
+
+```{r include=TRUE}
+
+HHSplot("West Moreton", Westmoreton.col)
+
+```
+
+### Wide Bay
+
+```{r include=TRUE}
+
+HHSplot("Wide Bay", Widebay.col)
+
+```
+
+About {}
+=====================================  
+
+### About the dashboard
+
+This dashboard shows coronavirus (COVID-19) infections over time in Queensland, Australia starting from March 16, 2020.
+
+<a href="https://twitter.com/share?ref_src=twsrc%5Etfw" class="twitter-share-button" data-size="large" data-text="Check out the QCPR&#39;s dashboard on COVID-19 cases in Queensland" data-url="https://qcpr.github.io/" data-via="UQ_QCPR" data-lang="en" data-show-count="false">Tweet</a><script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+#### Authorship
+
+This dashboard is developed and maintained by a team of researchers of the [Queensland Centre for Population Research](https://qcpr.com.au/) at the [University of Queensland](https://www.uq.edu.au/).
+
+```{r include= TRUE, out.width = "35%", out.height = "20%"}
+
+include_graphics('R:\\COVIDGEOG\\Dashboard\\QueenslandCOVID19tracker\\www\\logo.png') # update the pathway to an image in 'www' folder 
+
+```
+
+
+#### Data
+
+Data for visualisations and tables are all sourced from the Queensland Health web page:
+[https://www.health.qld.gov.au/news-events/doh-media-releases](https://www.health.qld.gov.au/news-events/doh-media-releases).
+
+According to the [Queensland Health](https://www.qld.gov.au/health/conditions/health-alerts/coronavirus-covid-19/current-status/current-status-and-contact-tracing-alerts#total-cases-disclaimer), HHS level case data may include a patient's residential address, Public Health Unit managing or location where test was ordered. Changes may occur in the number of notifications reported from day to day. This is due to ongoing maintenance and update of notification details as new information becomes available, or where discrepancies are detected through data quality assurance activities.
+
+Due to ongoing updates of details regarding individual cases, Queensland Government can revise total cases. This results in negative new cases and the mismatch between new daily confirmed cases and the count of new cases to date.
+
+
+#### Disclaimer
+
+The [Queensland Centre for Population Research](https://qcpr.com.au/) holds no responsibility for the accuracy of the data.
+
+The dashboard will be updated as data become available on the Queensland Health web page.
+
+
+#### Methods and definitions
+
+##### Doubling time
+The time in days it would take for the number of confirmed cases to double assuming today's rate of increase.
+
+##### Deaths
+The number of deaths recorded by Queensland Health where the patient had a positive SARS-CoV-2 test result.

@@ -1,0 +1,481 @@
+---
+title: "Home"
+output:
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    social: menu
+    source_code: embed
+    includes:
+      before_body: _header.html
+      after_body: _footer.html
+      background_image: ".//assets/img/mod_petral.jpg"
+#runtime: shiny
+# params:
+#     lup: "unknown"
+editor_options: 
+  chunk_output_type: console
+---
+
+<!-- # ```{r, echo=FALSE} -->
+<!-- # htmltools::img(src = knitr::image_uri(file.path(R.home("doc"), "html", "logo.jpg")),  -->
+<!-- #                alt = 'logo',  -->
+<!-- #                style = 'position:absolute; top:0; right:0; padding:10px;') -->
+<!-- # ``` -->
+
+<!-- body { -->
+<!--   background-image: url('https://linesteppers.com/tutorials/RMarkdown/img/BannerImage_TreeBlossoms_4470x3024.jpg'); -->
+<!--   background-repeat: no-repeat; -->
+<!--   background-size: 100%; -->
+<!-- } -->
+
+<!-- div { -->
+<!--   background-color: rgba(255, 255, 255, 0.35)   /* 35% opaque white */; -->
+<!--   padding: 0.25em; -->
+<!-- } -->
+
+```{r setup, include=TRUE}
+library(tidyverse)
+library(ggmap)
+library(leaflet)
+library(plotly)
+library(flexdashboard)
+library(DT)
+library(rgdal)
+library(crosstalk)
+# devtools::install_github("r-spatial/leafem")
+# library(leafem)
+#latest dataset
+tab3 <- read.csv("https://raw.githubusercontent.com/green-striped-gecko/covid_canberra/main/data/last.csv")
+# Aggregate method
+
+cols <- c( "red", "yellow","blue")
+
+addBuses <- FALSE
+
+tab3$Contact <- factor(tab3$Contact,levels=c(  "Close"  , "Casual", "Monitor") )
+cc <- as.numeric( tab3$Contact)
+ncols <- c("black","cyan")
+nn <- as.numeric(factor(tab3$Status))
+nn2 <- ifelse(nn==1,nn, 3)
+
+
+
+tab3$Date <- substr(tab3$Date,1,10) #ditch day of the week
+labs <- paste(tab3$Contact, tab3$Status,tab3$Exposure.Location, tab3$Street, tab3$Suburb, tab3$Date,tab3$Arrival.Time, tab3$Departure.Time, tab3$doubles, sep="<br/>") 
+
+###############################################
+##plot the map
+df_shared <- crosstalk::SharedData$new(tab3[,c(1,8,2:7)])
+
+
+m <- leaflet(df_shared) %>% addTiles()
+
+
+if (addBuses) {
+#read from shape file
+busses <- readOGR(dsn = "./bus", layer = "geo_export_69c76e06-1d3f-4619-be3b-b4e5789be8ca", verbose = FALSE)
+
+#search all bus lines that are mentioned
+
+bindex <- grep("Bus Route", tab3$Exposure.Location)
+buslanes <- tab3$Exposure.Location[bindex]
+
+busnumbers <- gsub("Bus Route ([0-9,A-Z]+) Transport.*","\\1", buslanes)
+blineindex <- which(busses$short_name %in% busnumbers)
+blabs <- paste(paste0("Bus route: ", busses$short_name[blineindex]),"<strong> For bus stops and ","exposure times, please"," search the table." , sep="<br/>")
+bb <- (busses[blineindex,])
+coo <- coordinates(bb)
+bcols <- colorRampPalette(c("purple", "green"))( length(coo))
+
+for (ib in 1:length(coo))
+{
+  cood <- data.frame(coo[[ib]])
+  m <- m %>% addPolylines(lng=cood[,1], lat=cood[,2], color = bcols[ib], weight   = 5, opacity = 0.7, popup  = blabs[ib])
+}
+
+}
+
+
+m <- m %>% addCircleMarkers(lat=tab3$lat, lng=tab3$lon,popup = labs, weight=nn2, fillColor = cols[cc],color=ncols[nn], opacity =0.8, radius = 5 , fillOpacity = 0.8)
+  #                           , clusterOptions =markerClusterOptions(spiderfyDistanceMultiplier=1.5,
+  # iconCreateFunction=JS("function (cluster) {    
+  # 
+  #   var childCount = cluster.getChildCount();  
+  # 
+  #   if (childCount < 100) {  
+  #     c = 'rgba(64, 64, 64, 0.5);'
+  #   } else if (childCount < 1000) {  
+  #     c = 'rgba(64, 64, 64, 0.5);'  
+  #   } else { 
+  #     c = 'rgba(64, 64, 64, 0.5);'  
+  #   }    
+  #    return new L.DivIcon({ html: '<div style=\"background-color:'+c+'\"><span>' + childCount + '</span></div>', className: 'marker-cluster', iconSize: new L.Point(40, 40) });
+  # }"))                                                                                                                           #) 
+m <- m %>%  addLegend("bottomright", labels = levels(tab3$Contact), colors = cols, opacity = 0.8)
+
+####################################################
+### add bus lines mentioned
+
+# m + addLogo("./assets/img/Capture1.PNG", alpha = 1, src = c("remote", "local"), url,
+#   position = c("topleft", "topright", "bottomleft", "bottomright"),
+#   offset.x = 50, offset.y = 13, width = 60, height = 60)
+# 
+
+```
+
+Current {data-orientation=columns}
+=====================================
+
+<style>
+.crosstalk-input-checkboxgroup{
+  color: blue;
+  font-size: 12px;
+}
+
+.navbar {
+  background-color:grey;
+  hover-color:yellow;
+}
+</style> 
+
+
+Inputs {.sidebar}
+-----------------------------------------------------------------------
+
+### Information
+
+<sup>Disclaimer: This map shows the covid exposure locations in the ACT and is an **unofficial website** based on [official sources](https://www.covid19.act.gov.au/act-status-and-response/act-covid-19-exposure-locations). So if in doubt, refer to the [offical website](https://www.covid19.act.gov.au/act-status-and-response/act-covid-19-exposure-locations), which has now also an [**official map**](https://www.covid19.act.gov.au/act-status-and-response/act-covid-19-exposure-locations/map#Map-of-ACT-exposure-locations) included. Supported by Volunteers from the University of Canberra. Contacts: Bernd Gruber [bernd.gruber@canberra.edu.au] & Anthony Davidson [anthony.davidson@canberra.edu.au]</sup>
+
+<br>
+<br>
+
+### Filter
+
+```{r}
+
+bscols(
+  filter_checkbox(
+    id = "contact",
+    label = "Contact",
+    sharedData = df_shared,
+    group = ~Contact,
+    columns = 1
+  ))
+
+bscols(
+  filter_checkbox(
+    id = "status",
+    label = "Status",
+    sharedData = df_shared,
+    group = ~Status,
+    columns = 1
+  ))
+
+bscols(  filter_select(id="dates", label="Date",sharedData = df_shared, group=~Date))
+bscols(  filter_select(id="suburb", label="Suburb",sharedData = df_shared, group=~Suburb))
+
+```
+
+```{r}
+
+
+```
+
+Column {data-width=500}{.tabset}
+------------------------------------------------------------
+
+### Map of Exposure sites and exposed bus routes
+
+```{r}
+m  %>%
+  addProviderTiles("Stamen.TonerLite")
+
+# %>%
+  # addPolygons(
+  #   # fill
+  #   fillColor   = ~pal(water_km2),
+  #   fillOpacity = 0.7,
+  #   # line
+  #   dashArray   = "3",
+  #   weight      = 2,
+  #   color       = "white",
+  #   opacity     = 1,
+  #   # interaction
+  #   highlight = highlightOptions(
+  #     weight = 5,
+  #     color = "#666",
+  #     dashArray = "",
+  #     fillOpacity = 0.7,
+  #     bringToFront = TRUE))
+```
+
+### New Cases today
+
+```{r eval = TRUE}
+##current dataset.. 
+#import now
+library(tidyverse)
+library(ggmap)
+library(leaflet)
+library(plotly)
+library(flexdashboard)
+library(DT)
+library(rgdal)
+library(crosstalk)
+library(absmapsdata)
+library(sf)
+
+
+
+############very ugly function But should work.....
+##ARD sep2021
+last_five_days_new <- function(dataList){
+
+    #no new sites test
+  tab3 <- read.csv(dataList)
+  
+  
+  
+  cols <- c( "red", "yellow","blue")
+
+  tab3$Contact <- factor(tab3$Contact,levels=c(  "Close"  , "Casual", "Monitor") )
+  cc <- as.numeric( tab3$Contact)
+  ncols <- c("black","cyan")
+  nn <- as.numeric(factor(tab3$Status))
+  nn2 <- ifelse(nn==1,nn, 3)
+  
+  # glimpse(tab3)
+  
+  tab3$Date <- substr(tab3$Date,1,10) #ditch day of the week
+  labs <- paste(tab3$Contact, tab3$Status,tab3$Exposure.Location, tab3$Street, tab3$Suburb, tab3$Date,tab3$Arrival.Time, tab3$Departure.Time, tab3$doubles, sep="<br/>") 
+
+  dataJoin <- absmapsdata::sa12016 %>%
+    filter(gcc_name_2016 == "Australian Capital Territory") %>%
+    mutate(Suburb = sa2_name_2016) %>%
+    left_join(tab3, by = c("Suburb")) %>%
+    select(Suburb, lat, lon, Exposure.Location, geometry,Status, Contact) %>%
+    na.omit() %>%
+    mutate(Status = ifelse(Status == "New", "New", "Previous")) %>%
+    st_as_sf
+  
+  glimpse(dataJoin)
+  # <NA> and NA
+  
+  # remove_missing(vars = c("Exposure.Location"))%>%  # let's just look Melbourne
+  plot1 <-  ggplot(dataJoin,aes(y=lat, x=lon)) +
+    ggspatial::annotation_map_tile() +
+    geom_sf(aes(geometry = geometry, fill = Status), 
+            col = c("red"), 
+            lty = 1, alpha =0.1)+ 
+    scale_fill_manual(values = c("red", "yellow","blue")) + 
+    geom_point(data = dataJoin, aes(y=lat, x=lon, fill = Status,alpha = 0.7), size = 2 ) #+ 
+  # scale_fill_manual(values = c("red", "yellow","blue","black", "white")) +
+  # scale_color_manual(values = c("red", "yellow","blue","black", "white")) 
+  
+  return(plot1)  
+  
+}  #function end
+
+
+#lapply
+p1 <- last_five_days_new(dataList = "./data/last.csv")
+
+
+# dataList = "./data/allfiles/September/table_01_Sep_2021_136pm.csv"
+# lapply(dataList, last_five_days_new)
+
+p1
+
+```
+
+
+Column {data-width=350}
+------------------------------------------------------------
+
+### Table of new cases
+
+```{r}
+# bscols(
+#   filter_checkbox(
+#     id = "contact",
+#     label = "",
+#     sharedData = df_shared,
+#     group = ~Contact,
+#     inline=TRUE
+#   ))
+#bscols(  filter_select(id="dates", label="Date",sharedData = df_shared, group=~Date))
+
+dtt <-DT::datatable(df_shared,
+     caption = 'Search for entries, (shift)click to select, this highlights the locations in the map.',selection = "multiple", rownames = FALSE, 
+  extensions = c("Buttons", "Select", "Responsive"), options = list(autoHideNavigation=FALSE, pageLength=50,
+   dom = 'Bfrtip',
+            select = TRUE, 
+            buttons = list(
+              "copy",
+              list(
+                extend = "selectNone",
+                text = "Clear"
+              )
+            ),                                   
+  initComplete = JS(
+        "function(settings, json) {",
+        "$(this.api().table().header()).css({'font-size': '50%'});",
+
+        "}")))  %>% DT::formatStyle(columns = 1:8, fontSize='70%') 
+
+dtt
+```
+
+
+Cases, contacts and hotspots {data-orientation=columns}
+=====================================  
+
+<!-- This data is collected using code that accesses twitter, act govt site, nsw govt site, vic govt site...? -->
+
+<sup>Disclaimer: This work This map shows the covid exposure locations in the ACT and is an **unofficial website** based on [official sources](https://www.covid19.act.gov.au/act-status-and-response/act-covid-19-exposure-locations). So if in doubt, refer to the [offical website](https://www.covid19.act.gov.au/act-status-and-response/act-covid-19-exposure-locations), which has now also an [**official map**](https://www.covid19.act.gov.au/act-status-and-response/act-covid-19-exposure-locations/map#Map-of-ACT-exposure-locations) included. Supported by Volunteers from the University of Canberra. Contacts: Bernd Gruber [bernd.gruber@canberra.edu.au] & Anthony Davidson [anthony.davidson@canberra.edu.au]</sup>
+
+
+Column {data-width=400}{.tabset}
+------------------------------------------------------------
+
+```{r eval = TRUE}
+# source("R/plotly_source_script.R")
+source("R/plotly_source_script.R")
+```
+
+### Map of Exposure sites
+
+```{r}
+# source("R/plotly_source_script.R")
+library(plotly)
+library(ggplotlyExtra)
+library(leaflet)
+
+leaflet(plotsumms) %>% addTiles() %>%
+  addCircleMarkers(lat=plotsumms$lat,
+                            lng=plotsumms$lon,
+                   weight = 0.2,
+    radius = log(plotsumms$contactcount)*20,
+                            popup = paste0(" COUNT:", plotsumms$contactcount),
+                            fillOpacity = 0.1,
+    # color = plotsumms$colsN,
+   color = "grey50"
+                            ) %>%
+  addCircles(lat=tab4$lat,lng=tab4$lon,
+             popup = paste0(plotsumms$Exposure.Location," ", plotsumms$Date),
+                            color = plotsumms$colsN,
+                            stroke = TRUE,
+                            fill = rep("black", length(plotsumms$colsN))) %>%
+  addLegend("bottomright",
+            labels = levels(plotsumms$Contact),
+            colors = levels(plotsumms$colsN),
+            opacity = 0.8)
+```
+
+This website tracks COVID-19 data and mobility information for the ACT and Canberra using code and data developed in the open source community. This information is only a guide. Please refer to official reports and press releases from government certified resources.
+
+### Yesterdays case numbers
+
+```{r eval = TRUE}
+##current dataset.. 
+#import now
+library(tidyverse)
+library(ggmap)
+library(leaflet)
+library(plotly)
+library(flexdashboard)
+library(DT)
+library(rgdal)
+library(crosstalk)
+library(absmapsdata)
+library(sf)
+
+
+
+############very ugly function But should work.....
+
+#dataList is a list...
+##ARD sep2021
+last_five_days_new <- function(dataList){
+
+    #no new sites test
+  tab3 <- read.csv(dataList)
+  
+  cols <- c( "red", "yellow","blue")
+
+  tab3$Contact <- factor(tab3$Contact,levels=c(  "Close"  , "Casual", "Monitor") )
+  cc <- as.numeric( tab3$Contact)
+  ncols <- c("black","cyan")
+  nn <- as.numeric(factor(tab3$Status))
+  nn2 <- ifelse(nn==1,nn, 3)
+  
+  # glimpse(tab3)
+  
+  tab3$Date <- substr(tab3$Date,1,10) #ditch day of the week
+  labs <- paste(tab3$Contact, tab3$Status,tab3$Exposure.Location, tab3$Street, tab3$Suburb, tab3$Date,tab3$Arrival.Time, tab3$Departure.Time, tab3$doubles, sep="<br/>") 
+
+  dataJoin <- absmapsdata::sa12016 %>%
+    filter(gcc_name_2016 == "Australian Capital Territory") %>%
+    mutate(Suburb = sa2_name_2016) %>%
+    left_join(tab3, by = c("Suburb")) %>%
+    select(Suburb, lat, lon, Exposure.Location, geometry,Status, Contact) %>%
+    na.omit() %>%
+    mutate(Status = ifelse(Status == "New", "New", "Previous")) %>%
+    st_as_sf
+  
+  glimpse(dataJoin)
+  # <NA> and NA
+  
+  # remove_missing(vars = c("Exposure.Location"))%>%  # let's just look Melbourne
+  plot1 <-  ggplot(dataJoin,aes(y=lat, x=lon)) +
+    ggspatial::annotation_map_tile() +
+    geom_sf(aes(geometry = geometry, fill = Status), 
+            col = c("red"), 
+            lty = 1, alpha =0.5)+ 
+    scale_fill_manual(values = c("red", "yellow","blue")) + 
+    geom_point(data = dataJoin, aes(y=lat, x=lon), size = 4, alpha = 0.3) #+ 
+  # scale_fill_manual(values = c("red", "yellow","blue","black", "white")) +
+  # scale_color_manual(values = c("red", "yellow","blue","black", "white")) 
+  
+  return(plot1)  
+  
+}  #function end
+
+
+#lapply
+p1 <- last_five_days_new(dataList = "./data/allfiles/September/table_01_Sep_2021_136pm.csv")
+
+
+# dataList = "./data/allfiles/September/table_01_Sep_2021_136pm.csv"
+# lapply(dataList, last_five_days_new)
+
+p1
+
+```
+
+
+### TODAY 
+
+```{r echo = FALSE}
+#lapply
+p1 <- last_five_days_new(dataList = "./data/allfiles/September/table_02_Sep_2021_704pm.csv")
+
+
+# dataList = "./data/allfiles/September/table_01_Sep_2021_136pm.csv"
+# lapply(dataList, last_five_days_new)
+
+p1
+```
+
+```{r child = "about.Rmd"}
+
+```
+
+Previous draft {data-orientation=columns}
+=====================================
+
+```{r child = "Covid_Exposure_ACT.rmd"}
+
+```
+
