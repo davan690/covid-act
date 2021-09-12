@@ -1,0 +1,253 @@
+---
+title: "Demo vignette"
+---
+
+## Application (vignette)
+
+Different parameterisations of the set of equations above allow for reproducible capturing of data in time and space. We demonstrate 3 independent scientific processes that can be defined from the generalised equations proposed in this publication. This is one simple demonstration of the value of thinking and writing R code in such a way as described above.
+
+[figure of location and data capture in time]
+
+```{eval = FALSE, echo = TRUE}
+Script that matches discription above:
+
+    ####### Exposure sites per Update function #################
+    countsperupdate <- function(allfiles){
+    
+    ##setup list of data
+    allfiledat <- list() #<- list() MUST BE OUTSIDE i loop
+    
+    ##loop that stores each column of interest across all files in allfiles
+    for(i in 1:length(allfiles)) {
+        # data is imported and sorted into files that are labelled and formated in the same way.
+          tib <- read_csv(allfiles[i]) %>%
+                dplyr::select(Contact, Date, Suburb, Status) 
+                #additonal variations
+                %>%
+                  dplyr::filter(Status == "New")
+          #add status = new or previous
+          
+        allfiledat[[i]] <- as.data.frame(tib)
+      } #end loop
+      
+      return(allfiledat)
+      
+    } #end function
+    
+    
+    #example function run
+    # Demo data
+    allfiles <- list.files("../data/allfiles/September/", pattern=c("table_", ".csv"), full.names = TRUE)
+    # allfilesA <- list.files("../data/allfiles/August/", pattern=c("table_", ".csv"), full.names = TRUE)
+    
+    #run function
+    allfiledat <- countsperupdate(allfiles = allfiles)
+    
+    
+    ############## summaries data setup for plotting############
+    
+    
+    #inputs needed
+    res <- data.frame(update=NA, date=NA,locations=NA, contact=NA,nsites=NA )
+    
+    cc<-1         
+    
+    for(i in 1:length(allfiles)){
+      
+      dd <- allfiledat[[i]]         
+      tt <- table(dd$Contact)
+      
+      if (length(tt)>0) {
+      for (ii in 1:length(tt))
+        {
+        res[cc, 1] <- i
+        res[cc,2] <- (substr(dd$Date[i], 1,10))
+        res[cc,3] <- nrow(dd)
+        res[cc,4] <- names(tt)[ii]
+        res[cc,5] <- tt[ii]
+        cc <- cc+1
+        }
+      }
+    }
+    
+    
+    res <- res[!res$contact=="Investigation information",]
+    res <- res[!res$contact=="Investigation location",]
+    res$contact <- factor(res$contact, levels=c("Close", "Casual","Monitor"))
+    res <- res[order(res$contact),]
+    cols <- c( "red", "yellow","blue")[as.numeric(res$contact)]
+```
+
+There are many different tools to achieve a simple reproducible workflow. Here I have used the collection of packages that I have ended up working with. These are always changing and being developed or adapted for other projects.
+
+## Setup tutorial
+
+The value of this prospective is not the selected packages and their application but the overall ease at which reproducible workflows are achievable and maybe one hint is to think of the data and capture process as I have described above. My approach lies in the RMarkdown and RStudio packages that I use and are needed to make the following demo work. 
+
+I have selected  to use R and RStudio to implement statistical models for over 10 years  and here it does well to capture the data to visualisation of covid19 data in the ACT. This is scalable and reproducible in several aspects (Appendix?) An example of this application in R can be found on github here: ....
+
+In the ACT we have xx and are surrounded by porous boards with the NSW state. This leaves a general population of 300 000 literally "stuck in the middle". The only way to get out of it is to understand how to reduce contact but still stay sane. One way to help control this is to understand what the ACT health measures are....or just no where not to go....I did the later by creating the same [[model]S]T view on the data and modelling process. Figure xx shows a simple conceptual diagram of the workflow to produce the final map.
+
+> NOTE: We solved this problem by treating each time we ran our data collection function in R we documented the time and date that this occured. We stored this as the file name of each csv the data script collected (Supplementary material)
+
+## Data
+
+Data from the web can be notoriously unstable, this therefore provides a somewhat dangerous but Realtime example of the generalisation in action. The simple R script below defines this generalisation for matching and storing covid19 data from a html webpage at defined times and dates.
+
+This allowed us to have a constant source of information to work from even when the data we were accessing was dynamiclly changing. 
+
+In the case of this covid19 project, the data and not to other aspects of the table that were changing such as the Suburb, location and even information within the html script. We were lucky the location of the html page did not change.....
+```
+    #html[database = string(char)]
+    #save html at time[x,y]
+    #extract data at time [x,y]
+    #Store data: .csv..... time [x,y]
+    #add code here...
+    
+    #knitr::datapage
+    #ACTlandingcases.PNG
+```
+
+{note:box} R Choices
+
+1. R for data wrangling in tidyverse (from ecology modelling work). This function written by myself and Bernd.
+
+### Working with data
+
+All datasets need some data management changes whether it is because there are differences in the program inputs, documentation changes or simply variable names between transformations in a standard analysis. In our case this is also due to the dataset being collected at different times the underlying variable and content changes. 
+
+```{r}
+    # Suburb
+    # Exposure.Location
+    # time
+    # location
+    # counts
+```
+
+To reduce the amount of future work in writing functions to apply across all our datasets it is easier to clean up the data with a script as needed and then use aspects of this information to either fix all past issues that are the same or run the function as a filter to all new datasets. This matches with other open science covid19 projects and the open tutorial on github here().
+
+I have made the follow decisions based on the this project data
+
+
+    # Suburb stays the same
+    # etc etc
+
+
+
+The resulting outcome of this means that we can create quick summary tables from the formated datasets.
+
+    #lastdataset.csv example
+    #DT can go here.....
+    #
+
+
+
+NOTE: In the future with stable APIs and other tools for web access to dynamic data we will have less of these issues which is another reason we need to get onto this now. There will be two options for this dataset into the future:
+
+1. Make a commerical intity from the work and charge.
+
+    #niotrd
+
+2. Work with government API to publish the dataset in a better way and we can access it with less work?
+
+    #niotrd
+
+R Choices
+
+1. R for data wrangling in tidyverse (from ecology modelling work)
+2. Mapping in google api structure ($200 free)
+
+
+
+Mapping
+
+General mapping challenges have become much easier over the past xx years. This may have stemmed from the solutions to the xx math problem and this association with different projections onto a 3D surface. Another note here is that programs such as R have become much better at mapping after R 4.0.1 as there have been large advancements in the functions and code to deal with the overall conversions of different data projections and co--ordinate systems. A great example of this is the GeoSpatial computation in R book by xx (Cite)
+
+Static or interactive? How much interactivity?
+
+    #google base easiest for this dynamic data
+
+
+
+
+
+
+
+R Choices
+
+1. R for data wrangling in tidyverse (from ecology modelling work)
+2. mapping in google api structure ($200 free)
+
+
+
+Timeline
+
+Time and date information is vital here but the difference between the overall estimates/varibles of time when dataset was imported etc there is no code to get/check this or any conversions from this state. 
+
+Levels of time
+
+To reduce the number of errors in the dataset I have attempted to end up with the following format for every entry of time in the datasets. This check here means that I can relax the tests needed later on when information becomes visualised at different times and locations.
+
+    # put into dyplot structure where
+    # time is 
+    # location is not here...
+    # day of week
+    # date
+    # etc
+    #############plot data ###################################
+    ggplot(res, aes(x=update,y=nsites))+
+    geom_bar(stat="identity", position = "stack", width=1, aes(fill=contact))+
+    xlab("update #")+
+    ylab("# exposure sites")+
+    ggtitle("Exposure sites over updates")
+    
+
+R Choices
+
+1. R for data wrangling in tidyverse (from ecology modelling work)
+
+Communication
+
+There are many ways to publish an RMarkdown document. In this case I can only define the parameters I have to work with and the choices we made based on this:
+
+1. flexdashboard as a static option for dynamic content (doesnt need a server)
+2. Static webpage ( as free build and development tools available) 
+3. Hosting (as github pages as above (Free hosting)
+
+The additional value that we have here is the information that we can create dynamic 3d plots if the axises are correctly assigned suuch that:
+
+    #x = lat, 
+    #y = count, 
+    #z = long (summary counts)
+
+
+
+
+R Choices
+
+1. R for data wrangling in tidyverse (from ecology modelling work)
+2. gif
+3. mapping in google api structure ($200 free)
+
+
+```{r}
+# Render html page
+```
+
+
+
+
+
+
+
+    
+
+
+
+
+
+R Choices
+
+1. rmarkdown()
+2. bookdown()
+3. rsconnet()
